@@ -9,13 +9,13 @@ import (
 
 func NewTLSServer() {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", tls)
+	mux.HandleFunc("/cache/add", cacheAdd)
 	server := &http.Server{
-		Addr:    "8848",
+		Addr:    ":8848",
 		Handler: mux,
 	}
 
-	if err := server.ListenAndServeTLS("server.crt", "server.key"); err != nil {
+	if err := server.ListenAndServeTLS("certificate.crt", "private.key"); err != nil {
 		panic(err)
 	}
 }
@@ -39,7 +39,7 @@ func (m *CacheManager) Add(key string) bool {
 	defer m.rw.Unlock()
 
 	var isAdded bool
-	if ok := m.Contains(key); ok {
+	if _, ok := m.cache[key]; ok {
 		isAdded = false
 	} else {
 		m.cache[key] = struct{}{}
@@ -57,27 +57,23 @@ func (m *CacheManager) Contains(key string) bool {
 	return ok
 }
 
-func tls(w http.ResponseWriter, r *http.Request) {
-	body, err := r.GetBody()
-	if err != nil {
+func cacheAdd(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	b, _ := io.ReadAll(body)
-	args := new(struct {
-		Keys []string `json:"keys"`
-	})
-	_ = json.Unmarshal(b, args)
+	b, _ := io.ReadAll(r.Body)
+	keys := []string{}
+	_ = json.Unmarshal(b, &keys)
 
-	ans := make([]bool, 0, len(args.Keys))
-	for _, key := range args.Keys {
+	ans := make([]bool, 0, len(keys))
+	for _, key := range keys {
 		isAdd := cacheManager.Add(key)
 		ans = append(ans, !isAdd)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	response, _ := json.Marshal(map[string]interface{}{
-		"is_add": ans,
-	})
+	response, _ := json.Marshal(ans)
 	w.Write(response)
 }
