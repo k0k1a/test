@@ -3,14 +3,13 @@ package src
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io"
 	"net/http"
 )
 import "crypto/tls"
 
 func BcjClient(keys []string) ([]bool, error) {
-
 	client := http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
@@ -26,8 +25,12 @@ func BcjClient(keys []string) ([]bool, error) {
 	}
 	defer resp.Body.Close()
 
+	var result []bool
 	b, _ := io.ReadAll(resp.Body)
-	fmt.Println(string(b))
+	_ = json.Unmarshal(b, &result)
+	if len(keys) != len(result) {
+		return nil, errors.New("keys and results do not match")
+	}
 
-	return nil, nil
+	return result, nil
 }
